@@ -1,0 +1,114 @@
+diff --git a/ovs.c b/ovs.c
+index 1b24b5a..51e3034 100644
+--- a/ovs.c
++++ b/ovs.c
+@@ -27,6 +27,8 @@ enum {
+ 	OVS_ATTR_BASE,
+ 	OVS_ATTR_TAG,
+ 	OVS_ATTR_EMPTY,
++	OVS_ATTR_TYPE,
++	OVS_ATTR_OPTIONS,
+ 	__OVS_ATTR_MAX
+ };
+ 
+@@ -35,6 +37,8 @@ static const struct blobmsg_policy ovs_attrs[__OVS_ATTR_MAX] = {
+ 	[OVS_ATTR_BASE] = { "ovs_base", BLOBMSG_TYPE_STRING },
+ 	[OVS_ATTR_TAG] = { "ovs_tag", BLOBMSG_TYPE_INT32 },
+ 	[OVS_ATTR_EMPTY] = { "ovs_empty", BLOBMSG_TYPE_BOOL },
++	[OVS_ATTR_TYPE] = { "ovs_type", BLOBMSG_TYPE_STRING },
++	[OVS_ATTR_OPTIONS] = { "ovs_options", BLOBMSG_TYPE_STRING },
+ };
+ 
+ static const struct uci_blob_param_info ovs_attr_info[__OVS_ATTR_MAX] = {
+@@ -186,6 +190,14 @@ ovs_enable_port(struct ovs_port *op)
+ 		goto error;
+ 	}
+ 
++	ret = system_ovs_settype(op->dev.dev, &ost->config);
++	if (ret < 0)
++		D(DEVICE, "Bridge type %s of %s could not be set\n", ost->config.type, op->dev.dev->ifname);
++
++	ret = system_ovs_setoptions(op->dev.dev, &ost->config);
++	if (ret < 0)
++		D(DEVICE, "Bridge options %s of %s could not be set\n", ost->config.options, op->dev.dev->ifname);
++
+ 	return 0;
+ 
+ error:
+@@ -577,6 +589,8 @@ ovs_apply_settings(struct ovs_state *ost, struct blob_attr **tb)
+ 	cfg->tag = 0;
+ 	cfg->base = NULL;
+ 	cfg->empty = false;
++	cfg->type = NULL;
++	cfg->options = NULL;
+ 
+ 	if (tb[OVS_ATTR_TAG] && tb[OVS_ATTR_BASE] ) {
+ 		cfg->tag = blobmsg_get_u32(tb[OVS_ATTR_TAG]);
+@@ -585,6 +599,12 @@ ovs_apply_settings(struct ovs_state *ost, struct blob_attr **tb)
+ 
+ 	if (tb[OVS_ATTR_EMPTY])
+ 		cfg->empty = blobmsg_get_bool(tb[OVS_ATTR_EMPTY]);
++
++	if (tb[OVS_ATTR_TYPE])
++		cfg->type = blobmsg_get_string(tb[OVS_ATTR_TYPE]);
++
++	if (tb[OVS_ATTR_OPTIONS])
++		cfg->options = blobmsg_get_string(tb[OVS_ATTR_OPTIONS]);
+ }
+ 
+ enum dev_change_type
+diff --git a/system-ovs.c b/system-ovs.c
+index d9666c3..345bc03 100644
+--- a/system-ovs.c
++++ b/system-ovs.c
+@@ -129,3 +129,29 @@ int system_ovs_delport(struct device *ovs, struct device *dev)
+ 		return -1;
+ 	return 0;
+ }
++
++int system_ovs_settype(struct device *dev, struct ovs_config *cfg)
++{
++	char buf[32];
++
++	if (!cfg->type)
++		return 0;
++
++	snprintf(buf, sizeof(buf)-1, "type=%s", cfg->type);
++	if (run_prog("/usr/bin/ovs-vsctl", "set", "interface", dev->ifname, buf))
++		return -1;
++	return 0;
++}
++
++int system_ovs_setoptions(struct device *dev, struct ovs_config *cfg)
++{
++	char buf[128];
++
++	if (!cfg->options)
++		return 0;
++
++	snprintf(buf, sizeof(buf), "options:%s", cfg->options);
++	if (run_prog("/usr/bin/ovs-vsctl", "set", "interface", dev->ifname, buf))
++		return -1;
++	return 0;
++}
+diff --git a/system-ovs.h b/system-ovs.h
+index ad018d4..f75a2fc 100644
+--- a/system-ovs.h
++++ b/system-ovs.h
+@@ -20,6 +20,8 @@ struct ovs_config {
+ 	bool empty;
+ 	int tag;
+ 	char *base;
++	char *type;
++	char *options;
+ };
+ 
+ void system_ovs_if_clear_state(struct device *dev);
+@@ -27,5 +29,7 @@ int system_ovs_delbr(struct device *ovs);
+ int system_ovs_addbr(struct device *ovs, struct ovs_config *cfg);
+ int system_ovs_addport(struct device *ovs, struct device *dev);
+ int system_ovs_delport(struct device *ovs, struct device *dev);
++int system_ovs_settype(struct device *dev, struct ovs_config *cfg);
++int system_ovs_setoptions(struct device *dev, struct ovs_config *cfg);
+ 
+ #endif
