@@ -17,8 +17,8 @@ endef
 $(eval $(call Profile,DHP1565A1))
 
 define Profile/DIR505A1
-	NAME:=D-Link DIR-505 rev. A1
-	PACKAGES:=kmod-usb-core kmod-usb2 kmod-ledtrig-usbdev
+	NAME:=D-Link DIR-505 rev. A1 (EmPOWER)
+	PACKAGES:=kmod-usb-core kmod-usb2 kmod-ledtrig-usbdev empower-lvap-agent openvswitch luci
 endef
 
 define Profile/DIR505A1/Description
